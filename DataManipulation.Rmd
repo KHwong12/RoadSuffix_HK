@@ -25,7 +25,8 @@ Road_unique <- Road_raw %>%
   filter(!is.na(STREET_ENAME) & STREET_ENAME != '-99')
 
 RoadName_list <- Road_raw %>%
-  distinct(STREET_ENAME, STREET_CNAME)
+  distinct(STREET_ENAME, STREET_CNAME) %>%
+  filter(!is.na(STREET_ENAME) & !is.na(STREET_CNAME))
 
 Road_List_CHI <- Road_raw %>%
   distinct(STREET_CNAME)
