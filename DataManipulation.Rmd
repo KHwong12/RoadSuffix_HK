@@ -1,0 +1,145 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+
+library(RColorBrewer)
+library(hrbrthemes)
+
+hrbrthemes::import_roboto_condensed()
+```
+
+
+```{r}
+# Need to solve utf-8 problem using read excel, read_csv fails
+
+Road_raw <- read_excel("data/data-raw/Road.xlsx")
+```
+
+```{r}
+Road_unique <- Road_raw %>%
+  filter(!is.na(STREET_ENAME) & STREET_ENAME != '-99')
+
+RoadName_list <- Road_raw %>%
+  distinct(STREET_ENAME, STREET_CNAME)
+
+Road_List_CHI <- Road_raw %>%
+  distinct(STREET_CNAME)
+
+Road_List_ENG <- Road_raw %>%
+  distinct(STREET_ENAME)
+```
+
+```{r}
+# rowwise to calculate sum rowwise instead of whole dataframe
+# https://stackoverflow.com/questions/49396267/dplyr-rowwise-sum-and-other-functions-like-max
+
+RoadSuffix_ENG <- Road_List_ENG %>%
+  mutate(HIGHWAY = grepl(" highway", STREET_ENAME, ignore.case = TRUE),
+         INTERCHANGE = grepl(" interchange", STREET_ENAME, ignore.case = TRUE),
+         ROAD = grepl(" road", STREET_ENAME, ignore.case = TRUE),
+         STREET = grepl(" street", STREET_ENAME, ignore.case = TRUE),
+         AVENUE = grepl(" avenue", STREET_ENAME, ignore.case = TRUE),
+         LANE = grepl(" lane", STREET_ENAME, ignore.case = TRUE),
+         DRIVE = grepl(" drive", STREET_ENAME, ignore.case = TRUE),
+         TERRACE = grepl(" terrace", STREET_ENAME, ignore.case = TRUE),
+         PATH = grepl(" path", STREET_ENAME, ignore.case = TRUE),
+         CIRCUIT = grepl(" circuit", STREET_ENAME, ignore.case = TRUE),
+         BOULEVARD = grepl(" boulevard", STREET_ENAME, ignore.case = TRUE)) %>%
+  rowwise() %>%
+  mutate(OTHERS = if_else(sum(HIGHWAY, INTERCHANGE, ROAD, STREET, AVENUE, LANE, DRIVE, TERRACE, PATH, CIRCUIT, BOULEVARD) == 0, TRUE, FALSE))
+```
+
+```{r}
+# https://stackoverflow.com/questions/36960010/get-column-name-that-matches-specific-row-value-in-dataframe
+
+RoadSuffix_ENG$SUF_ENG <- names(RoadSuffix_ENG)[max.col(RoadSuffix_ENG == TRUE, ties.method = "first")]
+
+RoadSuffix_ENG_G <- RoadSuffix_ENG %>%
+  mutate(SUF_ENG_G = if_else(SUF_ENG %in% c("INTERCHANGE", "TERRACE", "CIRCUIT", "BOULEVARD"),
+                             "OTHERS",
+                             SUF_ENG))
+
+```
+
+---
+
+```{r}
+# If the chinese name ends with direction
+# e.g. 皇后大道中, 東邊街北
+# Cannot use grepl since the char could appear in the middle (文咸東街)
+
+# SUF_CHI_XDIR: get last 2nd char, then get 1st char
+
+# isFALSE(隧道) && 
+# isFALSE(公路) && 
+
+
+RoadSuffix_CHI <- Road_List_CHI %>%
+  mutate(LAST_CHAR = str_sub(STREET_CNAME, -1, -1)) %>%
+  mutate(ENDS_DIR = LAST_CHAR %in% c("東", "南", "西", "北", "中")) %>%
+  mutate(SUF_CHI_XDIR = if_else(ENDS_DIR, str_sub(str_sub(STREET_CNAME, -2, -1),1, 1), "")) %>%
+# Special Suffix
+  mutate(公路 = grepl("公路", STREET_CNAME, ignore.case = TRUE),
+        交匯處  = grepl("交匯處", STREET_CNAME, ignore.case = TRUE),
+        隧道 = grepl("隧道", STREET_CNAME, ignore.case = TRUE),
+        天橋 = grepl("天橋", STREET_CNAME, ignore.case = TRUE)) %>%
+#rowwise, otherwise logical operator evaluate the whole column instead of single row
+  rowwise() %>%
+  mutate(道 = isFALSE(隧道) & (LAST_CHAR == "道" | SUF_CHI_XDIR == "道"),
+         路 = isFALSE(公路) & (LAST_CHAR == "路" | SUF_CHI_XDIR == "路"),
+         街 = (SUF_CHI_XDIR == "街" | LAST_CHAR == "街"),
+         徑 = (SUF_CHI_XDIR == "徑" | LAST_CHAR == "徑"),
+         里 = (SUF_CHI_XDIR == "里" | LAST_CHAR == "里"),
+         巷 = (SUF_CHI_XDIR == "巷" | LAST_CHAR == "巷"),
+         圍 = (SUF_CHI_XDIR == "圍" | LAST_CHAR == "圍"),
+         坊 = (SUF_CHI_XDIR == "坊" | LAST_CHAR == "坊"),
+         臺 = (SUF_CHI_XDIR == "臺" | LAST_CHAR == "臺")
+         ) %>%
+  mutate(其他 = if_else(sum(公路, 交匯處, 隧道, 道, 路, 街, 徑, 里, 巷, 圍, 坊, 臺) == 0, TRUE, FALSE)) %>%
+  dplyr::select(-ENDS_DIR)
+
+
+```
+
+```{r}
+
+RoadSuffix_CHI$SUF_CHI <- names(RoadSuffix_CHI)[max.col(RoadSuffix_CHI == TRUE, ties.method = "first")]
+
+RoadSuffix_CHI_G <- RoadSuffix_CHI %>%
+  mutate(SUF_CHI_G = if_else(SUF_CHI %in% c("交匯處", "隧道", "天橋", "巷", "圍", "坊", "臺"),
+                             "其他",
+                             SUF_CHI))
+
+```
+
+```{r}
+RoadSuffix_CHI_G %>% group_by(SUF_CHI) %>% summarise(count = n())
+```
+
+```{r}
+RoadSuffix_Unique <- RoadName_list %>%
+  merge(RoadSuffix_ENG_G %>% dplyr::select(STREET_ENAME, SUF_ENG, SUF_ENG_G), by = "STREET_ENAME") %>%
+  merge(RoadSuffix_CHI_G %>% dplyr::select(STREET_CNAME, SUF_CHI, SUF_CHI_G), by = "STREET_CNAME")
+```
+
+
+```{r}
+write_csv(RoadSuffix_Unique, "data/data-output/RoadSuffix_Unique.csv")
+```
+
+```{r}
+RoadSuffix_joinGIS <- Road_raw %>%
+  dplyr::select(OBJECTID, STREET_ENAME, STREET_CNAME) %>%
+  merge(RoadSuffix_eng_Gen %>% dplyr::select(STREET_ENAME, SUF_ENG, SUF_ENG_G), by = "STREET_ENAME") %>%
+  merge(RoadSuffix_CHI_Gen %>% dplyr::select(STREET_CNAME, SUF_CHI, SUF_CHI_G), by = "STREET_CNAME")
+```
+
+```{r}
+write_csv(RoadSuffix_joinGIS, "data/data-output/RoadSuffix_joinGIS.csv", na = "")
+```
+

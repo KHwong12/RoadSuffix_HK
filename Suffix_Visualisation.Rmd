@@ -1,0 +1,136 @@
+---
+title: "Road_Suffix"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+
+library(RColorBrewer)
+library(hrbrthemes)
+
+hrbrthemes::import_roboto_condensed()
+```
+
+```{r}
+## Define Plot Theme
+plot_theme <- function(...) {
+
+  # theme_minimal() + #For knit as pdf
+  theme_minimal() +
+    theme(
+      legend.position = "none",
+      panel.spacing = unit(1, "lines"),
+      strip.text.x = element_text(size = 8),
+      plot.title.position = "plot"
+    ) +
+    theme(...)
+}
+
+plot_theme_dark <- function(...) {
+  theme_minimal() +
+    theme(
+      legend.position = "none",
+      panel.spacing = unit(1, "lines"),
+      strip.text.x = element_text(size = 8),
+      plot.title.position = "plot",
+
+      panel.background = element_rect(fill = "#333333", color = "#333333"), # Fill inside plot area
+      plot.background = element_rect(fill = "#333333", color = "#333333"), # Fill outside plot area
+      text = element_text(color = "#FFFFFF"),
+      axis.text = element_text(color = "#FFFFFF")
+    ) +
+    theme(...)
+}
+```
+
+
+
+
+Need to solve utf-8 problem using read excel, read_csv fails
+
+```{r}
+# https://readxl.tidyverse.org/
+Suffix <- read_excel("Suffix.xlsx")
+```
+
+```{r}
+Suffix$SUF_ENG_G <- as.factor(Suffix$SUF_ENG_G)
+Suffix$SUF_CHI_G <- as.factor(Suffix$SUF_CHI_G)
+
+Suffix$SUF_CHI_G <- fct_relevel(Suffix$SUF_CHI_G, c("公路", "道", "路", "街", "徑", "里", "其他", "無名"))
+
+Suffix$SUF_ENG_G <- fct_relevel(Suffix$SUF_ENG_G, c("HIGHWAY", "ROAD", "STREET", "DRIVE", "AVENUE", "LANE", "OTHERS", "NONAME"))
+
+
+```
+
+
+
+
+```{r}
+Suffix %>%
+  group_by(SUF_ENG_G, SUF_CHI_G) %>%
+  summarise(count = n())
+```
+
+```{r}
+Suffix_Unique <- Suffix %>%
+  dplyr::select(STREET_ENAME, STREET_CNAME, SUF_ENG, SUF_ENG_G, SUF_CHI, SUF_CHI_G) %>%
+  unique() %>%
+  filter(!is.na(STREET_ENAME) & STREET_ENAME != "-99")
+
+Suffix_Unique_Plot <- Suffix_Unique %>%
+  group_by(SUF_ENG_G, SUF_CHI_G) %>%
+  summarise(count = n())
+
+#Work around
+# https://stackoverflow.com/questions/45832096/group-by-and-summarise-with-all-combinations-including-non-existing-combina
+Suffix_Unique_Plot_ALL <- Suffix_Unique_Plot %>%
+  spread(SUF_ENG_G, count) %>%
+  gather(SUF_ENG_G, count, -SUF_CHI_G)
+
+
+# SUF_ENG_G turned to char again after spread
+# DIRTY
+Suffix_Unique_Plot_ALL$SUF_ENG_G <- as.factor(Suffix_Unique_Plot_ALL$SUF_ENG_G)
+
+Suffix_Unique_Plot_ALL$SUF_ENG_G <- fct_relevel(Suffix_Unique_Plot_ALL$SUF_ENG_G, c("HIGHWAY", "ROAD", "STREET", "DRIVE", "AVENUE", "LANE", "OTHERS"))
+
+```
+
+## Reorder
+
+```{r}
+levels(Suffix_Unique_Plot_ALL$SUF_CHI_G)
+levels(Suffix_Unique_Plot_ALL$SUF_ENG_G)
+```
+
+
+
+```{r}
+## fct_rev to plot from top to bottom
+## default y drawing reorder is from bottom to top
+
+ggplot(Suffix_Unique_Plot_ALL, aes(x = SUF_ENG_G, y = fct_rev(SUF_CHI_G), fill = count)) +
+  geom_tile(color = "#EEEEEE", size = 1) +
+  geom_text(aes(label = count), color = "#222222") +
+  scale_fill_distiller(type = "seq", palette = "Greens", na.value = '#EEEEEE', direction = 1) +
+  scale_x_discrete(position = "top") +
+  plot_theme(panel.grid.major = element_blank())
+```
+
+```{r}
+ggplot(Suffix_Unique, aes(y = fct_rev(SUF_CHI_G), fill = SUF_CHI_G)) +
+  geom_bar() +
+  plot_theme_dark()
+
+ggsave("Suffix_Chi.pdf", device = "pdf")
+```
+
+```{r}
+ggplot(Suffix_Unique, aes(y = fct_rev(SUF_ENG_G), fill = SUF_ENG_G)) +
+  geom_bar() +
+  plot_theme_dark()
+```
