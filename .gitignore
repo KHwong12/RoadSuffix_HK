@@ -41,3 +41,10 @@ vignettes/*.pdf
 
 ### Temp work files
 SUFFIX_workfile.xlsx
+
+### ArcGIS files
+*.mxd
+
+### AI files
+*.ai
+
