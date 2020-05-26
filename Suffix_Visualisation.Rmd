@@ -10,7 +10,9 @@ library(readxl)
 library(RColorBrewer)
 library(hrbrthemes)
 
+library(extrafont)
 hrbrthemes::import_roboto_condensed()
+font_import()
 ```
 
 ```{r}
@@ -18,7 +20,7 @@ hrbrthemes::import_roboto_condensed()
 plot_theme <- function(...) {
 
   # theme_minimal() + #For knit as pdf
-  theme_minimal() +
+  theme_ipsum_rc() +
     theme(
       legend.position = "none",
       panel.spacing = unit(1, "lines"),
@@ -29,7 +31,7 @@ plot_theme <- function(...) {
 }
 
 plot_theme_dark <- function(...) {
-  theme_minimal() +
+  theme_ipsum_rc() +
     theme(
       legend.position = "none",
       panel.spacing = unit(1, "lines"),
@@ -49,10 +51,11 @@ plot_theme_dark <- function(...) {
 
 
 Need to solve utf-8 problem using read excel, read_csv fails
+Use read_excel if encoding fails
 
 ```{r}
 # https://readxl.tidyverse.org/
-RoadSuffix_Unique <- read_excel("Suffix.xlsx")
+RoadSuffix_Unique <- read_csv("data/data-output/RoadSuffix_Unique.csv")
 ```
 
 
@@ -116,7 +119,7 @@ levels(Suffix_Unique_Plot$SUF_ENG_G)
 ## default y drawing reorder is from bottom to top
 
 ## https://stackoverflow.com/questions/52378434/change-color-of-text-based-on-threshold
-## scale_color_identity() to tell ggplot2 use colors defined above directly, as aes values
+## scale_color_identity() to tell ggplot2 use colors defined above directly, as aes values, otherwise text colour also affected
 
 ## Fill by logged count values to allow more even "spread" of distribution
 
@@ -129,22 +132,42 @@ ggplot(Suffix_Unique_Plot, aes(x = SUF_ENG_G, y = fct_rev(SUF_CHI_G), fill = log
   scale_x_discrete(position = "top") +
   plot_theme_dark(
     panel.grid.major = element_blank(),
-    axis.title = element_blank()) +
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()) +
   labs(
-    title = "Chinese Suffix vs English Suffix of Roads"
+    title = "Chinese Street Suffix vs English Street Suffix"
   )
 ```
 
 ```{r}
 ggplot(RoadSuffix_Unique, aes(y = fct_rev(SUF_CHI_G), fill = SUF_CHI_G)) +
   geom_bar() +
-  plot_theme_dark()
+  geom_text(aes(label = ..count.., color = "#FFFFFF"), stat='count', hjust = 1.15) +
+  scale_color_identity() +
+  plot_theme_dark(
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(), # exlucde y main axis
+    aspect.ratio = 1/2
+  ) +
+  labs(
+    title = "Suffix of Chinese Street Names"
+  )
 
-# ggsave("Suffix_Chi.pdf", device = "pdf")
+#ggsave("Suffix_Chi.pdf", device = "pdf", width = 200, unit = "mm")
 ```
 
 ```{r}
 ggplot(RoadSuffix_Unique, aes(y = fct_rev(SUF_ENG_G), fill = SUF_ENG_G)) +
   geom_bar() +
-  plot_theme_dark()
+  geom_text(aes(label = ..count.., color = "#FFFFFF"), stat='count', hjust = 1.15) +
+  scale_color_identity() +
+  plot_theme_dark(
+    # plot.title = element_text(size = 22),
+    panel.grid.major.y = element_blank(), # exlucde y main axis
+    axis.title.y = element_blank(),
+    aspect.ratio = (1/2)*(8/7)
+  ) +
+  labs(
+    title = "Suffix of English Road Names"
+  )
 ```
